@@ -21,7 +21,12 @@ builder.Services.AddScoped<IImageService, ImageService>();
 
 builder.Services.AddScoped<IAddressBookService, AddressBookService>();
 
+builder.Services.AddScoped<IABEmailService, EmailService>();
+builder.Services.Configure<MailSettings>(builder.Configuration.GetSection("MailSettings")); 
+
+
 //--------------
+
 
 builder.Services.AddControllersWithViews();
 

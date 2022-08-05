@@ -12,6 +12,7 @@ using ContactPro.Models;
 using ContactPro.Enums;
 using ContactPro.Services;
 using ContactPro.Services.Interfaces;
+using ContactPro.Models.ViewModels;
 
 namespace ContactPro.Controllers
 {
@@ -21,22 +22,27 @@ namespace ContactPro.Controllers
         private readonly UserManager<AppUser> _userManager;
         private readonly IImageService _imageService;
         private readonly IAddressBookService _addressBookService;
+        private readonly IABEmailService _emailService;
 
-        public ContactsController(ApplicationDbContext context, 
+        public ContactsController(ApplicationDbContext context,
                                   UserManager<AppUser> userManager,
                                   IImageService imageService,
-                                  IAddressBookService addressBookService)
+                                  IAddressBookService addressBookService,
+                                  IABEmailService emailService)
         {
             _context = context;
             _userManager = userManager;
             _imageService = imageService;
-            _addressBookService = addressBookService;   
+            _addressBookService = addressBookService;
+            _emailService = emailService;
         }
 
         // GET: Contacts
         [Authorize]
-        public async Task<IActionResult> Index(int categoryId)
-        {   
+        public async Task<IActionResult> Index(int categoryId, string swalMessage = null)
+        {
+            ViewData["SwalMessage"] = swalMessage;
+
             string appUserId = _userManager.GetUserId(User);
 
             List<Contact> contacts = new List<Contact>();
@@ -82,14 +88,14 @@ namespace ContactPro.Controllers
             if (string.IsNullOrEmpty(searchString))
             {
                 contacts = appUser.Contacts
-                                     .OrderBy(c=>c.LastName)
-                                     .ThenBy(c=>c.FirstName)
+                                     .OrderBy(c => c.LastName)
+                                     .ThenBy(c => c.FirstName)
                                     .ToList();
             }
             else
             {
                 contacts = appUser.Contacts
-                                    .Where(c=>c.FullName!.ToLower().Contains(searchString.ToLower()))
+                                    .Where(c => c.FullName!.ToLower().Contains(searchString.ToLower()))
                                    .OrderBy(c => c.LastName)
                                    .ThenBy(c => c.FirstName)
                                    .ToList();
@@ -121,17 +127,17 @@ namespace ContactPro.Controllers
         public async Task<IActionResult> Create([Bind("Id,AppUserId,FirstName,LastName,BirthDate,Address1,Address2,City,State,ZipCode,Email,PhoneNumber,Created,ImageFile")] Contact contact, List<int> CategoryList)
         {
             ModelState.Remove("AppUserId");
-            
+
             if (ModelState.IsValid)
             {
                 contact.AppUserId = _userManager.GetUserId(User);
-                contact.Created = DateTime.SpecifyKind(DateTime.Now, DateTimeKind.Utc); 
-                
-                if(contact.BirthDate != null)
+                contact.Created = DateTime.SpecifyKind(DateTime.Now, DateTimeKind.Utc);
+
+                if (contact.BirthDate != null)
                 {
                     contact.BirthDate = DateTime.SpecifyKind(contact.BirthDate.Value, DateTimeKind.Utc);
                 }
-                if(contact.ImageFile != null)
+                if (contact.ImageFile != null)
                 {
                     contact.ImageData = await _imageService.ConvertFileToByteArrayAsync(contact.ImageFile);
                     contact.ImageType = contact.ImageFile.ContentType;
@@ -141,21 +147,21 @@ namespace ContactPro.Controllers
                 await _context.SaveChangesAsync();
 
                 //add contact contegories
-                foreach(int categoryId in CategoryList)
+                foreach (int categoryId in CategoryList)
                 {
                     //save each category to the database for the contact
                     await _addressBookService.AddContactToCategoryAsyn(categoryId, contact.Id);
                 }
-                
+
             }
-           return RedirectToAction(nameof(Index));
+            return RedirectToAction(nameof(Index));
         }
 
         // GET: Contacts/Edit/5
         [Authorize]
         public async Task<IActionResult> Edit(int? id)
         {
-            if(id == null)
+            if (id == null)
             {
                 return NotFound();
             }
@@ -164,13 +170,13 @@ namespace ContactPro.Controllers
 
             Contact contact = await _context.Contact.Where(c => c.Id == id && c.AppUserId == appUserId).FirstOrDefaultAsync();
 
-            if(contact == null)
+            if (contact == null)
             {
                 return NotFound();
             }
             ViewData["StatesList"] = new SelectList(Enum.GetValues(typeof(States)).Cast<States>().ToList());
-            ViewData["CategoryList"] = new SelectList(await _addressBookService.GetUserCategoriesAsync(appUserId), "Id", "Name", await _addressBookService.GetContactCategoryIdsAsync(contact.Id));
-            
+            ViewData["CategoryList"] = new MultiSelectList(await _addressBookService.GetUserCategoriesAsync(appUserId), "Id", "Name", await _addressBookService.GetContactCategoryIdsAsync(contact.Id));
+
             return View(contact);
         }
 
@@ -193,11 +199,11 @@ namespace ContactPro.Controllers
                 {
                     contact.Created = DateTime.SpecifyKind(contact.Created, DateTimeKind.Utc);
 
-                    if(contact.BirthDate != null)
+                    if (contact.BirthDate != null)
                     {
                         contact.BirthDate = DateTime.SpecifyKind(contact.BirthDate.Value, DateTimeKind.Utc);
                     }
-                    if(contact.ImageFile != null)
+                    if (contact.ImageFile != null)
                     {
                         contact.ImageData = await _imageService.ConvertFileToByteArrayAsync(contact.ImageFile);
                         contact.ImageType = contact.ImageFile.ContentType;
@@ -209,7 +215,7 @@ namespace ContactPro.Controllers
 
                     //get a list of the old categories
                     List<Category> oldCategories = (await _addressBookService.GetContactCategoriesAsync(contact.Id)).ToList();
-                    foreach(Category category in oldCategories)
+                    foreach (Category category in oldCategories)
                     {
                         //remove the category from the contact
                         await _addressBookService.RemoveContactFromCategoryAsyn(category.Id, contact.Id);
@@ -217,7 +223,7 @@ namespace ContactPro.Controllers
                     }
 
                     //then we add back the selcted categories to the contact
-                    foreach(int categoryId in CategoryList)
+                    foreach (int categoryId in CategoryList)
                     {
                         //Add each one to the database
                         await _addressBookService.AddContactToCategoryAsyn(categoryId, contact.Id);
@@ -278,14 +284,58 @@ namespace ContactPro.Controllers
             {
                 _context.Contact.Remove(contact);
             }
-            
+
             await _context.SaveChangesAsync();
             return RedirectToAction(nameof(Index));
         }
 
         private bool ContactExists(int id)
         {
-          return (_context.Contact?.Any(e => e.Id == id)).GetValueOrDefault();
+            return (_context.Contact?.Any(e => e.Id == id)).GetValueOrDefault();
+        }
+
+        [Authorize]
+        public async Task<IActionResult> EmailContact(int id)
+        {
+            string appUserId = _userManager.GetUserId(User);
+            Contact contact = await _context.Contact.Where(c => c.Id == id && c.AppUserId == appUserId)
+                                                   .FirstOrDefaultAsync();
+            if (contact == null)
+            {
+                return NotFound();
+            }
+            EmailData emailData = new EmailData()
+            {
+                EmailAddress = contact.Email,
+                FirstName = contact.FirstName,
+                LastName = contact.LastName
+            };
+            EmailContactViewModel model = new EmailContactViewModel()
+            {
+                Contact = contact,
+                EmailData = emailData
+            };
+            return View(model);
+        }
+        [Authorize]
+        [HttpPost]
+        public async Task<IActionResult> EmailContact(EmailContactViewModel ecvm)
+        {
+            if (ModelState.IsValid)
+            {
+                try
+                {
+                    await _emailService.SendEmailAsync(ecvm.EmailData.EmailAddress, ecvm.EmailData.Subject, ecvm.EmailData.Body);
+                    return RedirectToAction("Index", "Contacts", new {swalMessage = "Success: Email Sent!"});
+                }
+                catch
+                {
+                    return RedirectToAction("Index", "Contacts", new {swalMessage = "Error: Email Send Failed!"});
+                    throw;
+                }
+
+            }
+            return View(ecvm);
         }
     }
 }

@@ -54,7 +54,7 @@ namespace ContactPro.Services
         {
             try
             {
-                Contact contact = await _context.Contact.Include(c=>c.Categories)
+                Contact? contact = await _context.Contact!.Include(c=>c.Categories)
                                                         .FirstOrDefaultAsync(c=>c.Id == contactId);
 
                 List<int> categoryIds = contact.Categories.Select(c => c.Id).ToList();

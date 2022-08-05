@@ -1,14 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using ContactPro.Data;
 using ContactPro.Models;
+using ContactPro.Models.ViewModels;
+using ContactPro.Services.Interfaces;
+
 
 namespace ContactPro.Controllers
 {
@@ -16,21 +15,25 @@ namespace ContactPro.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly UserManager<AppUser> _userManager;
+        private readonly IABEmailService _emailService;
 
-        public CategoriesController(ApplicationDbContext context, UserManager<AppUser> userManager)
+        public CategoriesController(ApplicationDbContext context, UserManager<AppUser> userManager, IABEmailService emailService)
         {
             _context = context;
             _userManager = userManager;
+            _emailService = emailService;
         }
 
         // GET: Categories
         [Authorize]
-        public async Task<IActionResult> Index()
+        public async Task<IActionResult> Index(string swalMessage = null)
         {
+            ViewData["SwalMessage"] = swalMessage;
+
             string appUserId = _userManager.GetUserId(User);
             List<Category> categories = await _context.Category
                                                         .Where(c => c.AppUserId == appUserId)
-                                                        .OrderBy(c=>c.Name)
+                                                        .OrderBy(c => c.Name)
                                                         .ToListAsync();
             return View(categories);
         }
@@ -59,7 +62,7 @@ namespace ContactPro.Controllers
         [Authorize]
         public IActionResult Create()
         {
-            
+
             return View();
         }
 
@@ -84,7 +87,7 @@ namespace ContactPro.Controllers
                 await _context.SaveChangesAsync();
                 return RedirectToAction(nameof(Index));
             }
-            
+
             return View(category);
         }
 
@@ -99,14 +102,14 @@ namespace ContactPro.Controllers
 
             string appUserId = _userManager.GetUserId(User);
 
-            var category = await _context.Category.Where(c => c.Id == id && c.AppUserId == appUserId)
+            var category = await _context.Category!.Where(c => c.Id == id && c.AppUserId == appUserId)
                                             .FirstOrDefaultAsync();
 
             if (category == null)
             {
                 return NotFound();
             }
-           
+
             return View(category);
         }
 
@@ -122,7 +125,6 @@ namespace ContactPro.Controllers
             {
                 return NotFound();
             }
-
 
             if (ModelState.IsValid)
             {
@@ -148,7 +150,7 @@ namespace ContactPro.Controllers
                 }
                 return RedirectToAction(nameof(Index));
             }
-            
+            ViewData["AppUserId"] = new SelectList(_context.Users, "Id", "Id", category.AppUserId);
             return View(category);
         }
 
@@ -187,14 +189,72 @@ namespace ContactPro.Controllers
             {
                 _context.Category.Remove(category);
             }
-            
+
             await _context.SaveChangesAsync();
             return RedirectToAction(nameof(Index));
         }
 
         private bool CategoryExists(int id)
         {
-          return (_context.Category?.Any(e => e.Id == id)).GetValueOrDefault();
+            return (_context.Category?.Any(e => e.Id == id)).GetValueOrDefault();
+        }
+
+        [Authorize]
+        public async Task<IActionResult> EmailCategory(int id)
+        {
+            string appUserId = _userManager.GetUserId(User);
+            Category category = await _context.Category
+                                               .Include(c=>c.Contacts)
+                                               .FirstOrDefaultAsync(c=>c.Id == id && c.AppUserId == appUserId);
+            List<string> emails = category.Contacts.Select(c=>c.Email).ToList();
+            EmailData emailData = new EmailData()
+            {
+                GroupName = category.Name,
+                EmailAddress = String.Join(";", emails),
+                Subject = $"Group for {category.Name} Group",
+            };
+            EmailCategoryViewModel model = new EmailCategoryViewModel()
+            {
+                Contacts = category.Contacts.ToList(),
+                EmailData = emailData
+
+            };
+        return View(model);
+        }
+
+        [Authorize]
+        [HttpPost]
+        public async Task<IActionResult> EmailCategory(EmailCategoryViewModel ecvm)
+        {
+            if (ModelState.IsValid)
+            {
+                AppUser appUser = await _userManager.GetUserAsync(User);
+                await _emailService.SendEmailAsync(ecvm.EmailData.EmailAddress,ecvm.EmailData.Subject,ecvm.EmailData.Body);
+
+                return RedirectToAction("Index", "Categories");
+
+            }
+            return View();
+        }
+        [Authorize]
+        [HttpPost]
+        public async Task<IActionResult> EmailContact(EmailCategoryViewModel ecvm)
+        {
+            if (ModelState.IsValid)
+            {
+                try
+                {
+                    await _emailService.SendEmailAsync(ecvm.EmailData.EmailAddress, ecvm.EmailData.Subject, ecvm.EmailData.Body);
+                    return RedirectToAction("Index", "Categories", new { swalMessage = "Success: Email Sent!" });
+                }
+                catch
+                {
+                    return RedirectToAction("Index", "Categories", new { swalMessage = "Error: Email Send Failed!" });
+                    throw;
+                }
+
+            }
+            return View(ecvm);
         }
     }
 }
