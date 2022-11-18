@@ -21,8 +21,8 @@ namespace ContactPro.Services
                 if(!await IsContactInCategory(categoryId, contactId))
                 {
                     //add the category to the database
-                    Contact? contact = await _context.Contact.FindAsync(contactId);
-                    Category? category = await _context.Category.FindAsync(categoryId);
+                    Contact? contact = await _context.Contact!.FindAsync(contactId);
+                    Category? category = await _context.Category!.FindAsync(categoryId);
 
                     if(contact != null && category != null){
                         category.Contacts.Add(contact);
@@ -40,9 +40,9 @@ namespace ContactPro.Services
         {
             try
             {
-                Contact contact = await _context.Contact.Include(c=>c.Categories)
+                Contact? contact = await _context.Contact!.Include(c=>c.Categories)
                                                          .FirstOrDefaultAsync(c=>c.Id == contactId);
-                return contact.Categories;
+                return contact!.Categories;
             }
             catch
             {
@@ -57,7 +57,7 @@ namespace ContactPro.Services
                 Contact? contact = await _context.Contact!.Include(c=>c.Categories)
                                                         .FirstOrDefaultAsync(c=>c.Id == contactId);
 
-                List<int> categoryIds = contact.Categories.Select(c => c.Id).ToList();
+                List<int> categoryIds = contact!.Categories.Select(c => c.Id).ToList();
                 return categoryIds;
             }
             catch
@@ -72,7 +72,7 @@ namespace ContactPro.Services
 
             try
             {
-                categories = await _context.Category.Where(c => c.AppUserId == appUserId)
+                categories = await _context.Category!.Where(c => c.AppUserId == appUserId)
                                                     .OrderBy(c=>c.Name)
                                                     .ToListAsync();
             }
@@ -88,11 +88,11 @@ namespace ContactPro.Services
         {
             try
             {
-                Contact? contact = await _context.Contact.FindAsync(contactId);
+                Contact? contact = await _context.Contact!.FindAsync(contactId);
 
-                return await _context.Category
+                return await _context.Category!
                                      .Include(c=>c.Contacts)
-                                     .Where(c=>c.Id == categoryId && c.Contacts.Contains(contact))
+                                     .Where(c=>c.Id == categoryId && c.Contacts.Contains(contact!))
                                      .AnyAsync();
             }
             catch
@@ -103,8 +103,8 @@ namespace ContactPro.Services
 
         public async Task RemoveContactFromCategoryAsyn(int categoryId, int contactId)
         {
-            Contact? contact = await _context.Contact.FindAsync(contactId);
-            Category? category = await _context.Category.FindAsync(categoryId);
+            Contact? contact = await _context.Contact!.FindAsync(contactId);
+            Category? category = await _context.Category!.FindAsync(categoryId);
             
             if(category != null && contact != null)
             {

@@ -22,6 +22,7 @@ namespace ContactPro.Models
         public string? LastName { get; set; }
 
         [NotMapped]
+        [Display(Name = "Full Name")]
         public string? FullName { get { return $"{FirstName} {LastName}"; } }
 
         [Display(Name = "Birthday")]

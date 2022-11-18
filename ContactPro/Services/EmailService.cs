@@ -6,20 +6,17 @@ using MailKit.Net.Smtp;
 using MailKit.Security;
 using MimeKit;
 using Microsoft.Extensions.Options;
+using Microsoft.AspNetCore.Identity.UI.Services;
 
 namespace ContactPro.Services
 {
 
-    public class EmailService : IABEmailService
+    public class EmailService : IEmailSender
     {
         private readonly MailSettings _mailSettings;
         public EmailService(IOptions<MailSettings> mailSettings)
         {
             _mailSettings = mailSettings.Value;
-        }
-        public Task SendEmailAsync(AppUser appUser, List<Contact> contacts, EmailData emailData)
-        {
-            throw new NotImplementedException();
         }
 
         public async Task SendEmailAsync(string email, string subject, string htmlMessage)

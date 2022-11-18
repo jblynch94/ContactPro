@@ -13,6 +13,7 @@ using ContactPro.Enums;
 using ContactPro.Services;
 using ContactPro.Services.Interfaces;
 using ContactPro.Models.ViewModels;
+using Microsoft.AspNetCore.Identity.UI.Services;
 
 namespace ContactPro.Controllers
 {
@@ -22,13 +23,13 @@ namespace ContactPro.Controllers
         private readonly UserManager<AppUser> _userManager;
         private readonly IImageService _imageService;
         private readonly IAddressBookService _addressBookService;
-        private readonly IABEmailService _emailService;
+        private readonly IEmailSender _emailService;
 
         public ContactsController(ApplicationDbContext context,
                                   UserManager<AppUser> userManager,
                                   IImageService imageService,
                                   IAddressBookService addressBookService,
-                                  IABEmailService emailService)
+                                  IEmailSender emailService)
         {
             _context = context;
             _userManager = userManager;
@@ -39,7 +40,7 @@ namespace ContactPro.Controllers
 
         // GET: Contacts
         [Authorize]
-        public async Task<IActionResult> Index(int categoryId, string swalMessage = null)
+        public async Task<IActionResult> Index(int categoryId, string swalMessage = null!)
         {
             ViewData["SwalMessage"] = swalMessage;
 
@@ -47,13 +48,13 @@ namespace ContactPro.Controllers
 
             List<Contact> contacts = new List<Contact>();
 
-            AppUser appUser = await _context.Users
+            AppUser? appUser = await _context.Users
                                                   .Include(u => u.Contacts)
                                                   .ThenInclude(c => c.Categories)
                                                   .FirstOrDefaultAsync(u => u.Id == appUserId);
             if (categoryId == 0)
             {
-                contacts = appUser.Contacts
+                contacts = appUser!.Contacts
                                   .OrderBy(c => c.LastName)
                                   .ThenBy(c => c.FirstName)
                                   .ToList();
@@ -61,7 +62,7 @@ namespace ContactPro.Controllers
             }
             else
             {
-                contacts = appUser.Categories.FirstOrDefault(c => c.Id == categoryId)
+                contacts = appUser!.Categories.FirstOrDefault(c => c.Id == categoryId)!
                                     .Contacts
                                     .OrderBy(c => c.LastName)
                                     .ThenBy(c => c.FirstName)
@@ -80,21 +81,21 @@ namespace ContactPro.Controllers
 
             List<Contact> contacts = new List<Contact>();
 
-            AppUser appUser = await _context.Users
+            AppUser? appUser = await _context.Users
                                                  .Include(u => u.Contacts)
                                                  .ThenInclude(c => c.Categories)
                                                  .FirstOrDefaultAsync(u => u.Id == appUserId);
 
             if (string.IsNullOrEmpty(searchString))
             {
-                contacts = appUser.Contacts
+                contacts = appUser!.Contacts
                                      .OrderBy(c => c.LastName)
                                      .ThenBy(c => c.FirstName)
                                     .ToList();
             }
             else
             {
-                contacts = appUser.Contacts
+                contacts = appUser!.Contacts
                                     .Where(c => c.FullName!.ToLower().Contains(searchString.ToLower()))
                                    .OrderBy(c => c.LastName)
                                    .ThenBy(c => c.FirstName)
@@ -168,7 +169,7 @@ namespace ContactPro.Controllers
 
             string appUserId = _userManager.GetUserId(User);
 
-            Contact contact = await _context.Contact.Where(c => c.Id == id && c.AppUserId == appUserId).FirstOrDefaultAsync();
+            Contact? contact = await _context.Contact!.Where(c => c.Id == id && c.AppUserId == appUserId).FirstOrDefaultAsync();
 
             if (contact == null)
             {
@@ -298,7 +299,7 @@ namespace ContactPro.Controllers
         public async Task<IActionResult> EmailContact(int id)
         {
             string appUserId = _userManager.GetUserId(User);
-            Contact contact = await _context.Contact.Where(c => c.Id == id && c.AppUserId == appUserId)
+            Contact? contact = await _context.Contact!.Where(c => c.Id == id && c.AppUserId == appUserId)
                                                    .FirstOrDefaultAsync();
             if (contact == null)
             {
@@ -306,7 +307,7 @@ namespace ContactPro.Controllers
             }
             EmailData emailData = new EmailData()
             {
-                EmailAddress = contact.Email,
+                EmailAddress = contact.Email!,
                 FirstName = contact.FirstName,
                 LastName = contact.LastName
             };
@@ -317,6 +318,7 @@ namespace ContactPro.Controllers
             };
             return View(model);
         }
+
         [Authorize]
         [HttpPost]
         public async Task<IActionResult> EmailContact(EmailContactViewModel ecvm)
@@ -325,7 +327,7 @@ namespace ContactPro.Controllers
             {
                 try
                 {
-                    await _emailService.SendEmailAsync(ecvm.EmailData.EmailAddress, ecvm.EmailData.Subject, ecvm.EmailData.Body);
+                    await _emailService.SendEmailAsync(ecvm.EmailData!.EmailAddress, ecvm.EmailData.Subject, ecvm.EmailData.Body);
                     return RedirectToAction("Index", "Contacts", new {swalMessage = "Success: Email Sent!"});
                 }
                 catch

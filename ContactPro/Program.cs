@@ -4,6 +4,7 @@ using ContactPro.Models;
 using ContactPro.Services;
 using ContactPro.Services.Interfaces;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -24,7 +25,7 @@ builder.Services.AddScoped<IImageService, ImageService>();
 
 builder.Services.AddScoped<IAddressBookService, AddressBookService>();
 
-builder.Services.AddScoped<IABEmailService, EmailService>();
+builder.Services.AddScoped<IEmailSender, EmailService>();
 builder.Services.Configure<MailSettings>(builder.Configuration.GetSection("MailSettings")); 
 
 

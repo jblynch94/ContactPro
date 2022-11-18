@@ -7,7 +7,7 @@ using ContactPro.Data;
 using ContactPro.Models;
 using ContactPro.Models.ViewModels;
 using ContactPro.Services.Interfaces;
-
+using Microsoft.AspNetCore.Identity.UI.Services;
 
 namespace ContactPro.Controllers
 {
@@ -15,9 +15,9 @@ namespace ContactPro.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly UserManager<AppUser> _userManager;
-        private readonly IABEmailService _emailService;
+        private readonly IEmailSender _emailService;
 
-        public CategoriesController(ApplicationDbContext context, UserManager<AppUser> userManager, IABEmailService emailService)
+        public CategoriesController(ApplicationDbContext context, UserManager<AppUser> userManager, IEmailSender emailService)
         {
             _context = context;
             _userManager = userManager;
@@ -26,12 +26,12 @@ namespace ContactPro.Controllers
 
         // GET: Categories
         [Authorize]
-        public async Task<IActionResult> Index(string swalMessage = null)
+        public async Task<IActionResult> Index(string swalMessage = null!)
         {
             ViewData["SwalMessage"] = swalMessage;
 
             string appUserId = _userManager.GetUserId(User);
-            List<Category> categories = await _context.Category
+            List<Category> categories = await _context.Category!
                                                         .Where(c => c.AppUserId == appUserId)
                                                         .OrderBy(c => c.Name)
                                                         .ToListAsync();
@@ -203,10 +203,10 @@ namespace ContactPro.Controllers
         public async Task<IActionResult> EmailCategory(int id)
         {
             string appUserId = _userManager.GetUserId(User);
-            Category category = await _context.Category
+            Category? category = await _context.Category!
                                                .Include(c=>c.Contacts)
                                                .FirstOrDefaultAsync(c=>c.Id == id && c.AppUserId == appUserId);
-            List<string> emails = category.Contacts.Select(c=>c.Email).ToList();
+            List<string?> emails = category!.Contacts.Select(c=>c.Email).ToList();
             EmailData emailData = new EmailData()
             {
                 GroupName = category.Name,
@@ -229,7 +229,7 @@ namespace ContactPro.Controllers
             if (ModelState.IsValid)
             {
                 AppUser appUser = await _userManager.GetUserAsync(User);
-                await _emailService.SendEmailAsync(ecvm.EmailData.EmailAddress,ecvm.EmailData.Subject,ecvm.EmailData.Body);
+                await _emailService.SendEmailAsync(ecvm.EmailData!.EmailAddress,ecvm.EmailData.Subject,ecvm.EmailData.Body);
 
                 return RedirectToAction("Index", "Categories");
 
@@ -244,7 +244,7 @@ namespace ContactPro.Controllers
             {
                 try
                 {
-                    await _emailService.SendEmailAsync(ecvm.EmailData.EmailAddress, ecvm.EmailData.Subject, ecvm.EmailData.Body);
+                    await _emailService.SendEmailAsync(ecvm.EmailData!.EmailAddress, ecvm.EmailData.Subject, ecvm.EmailData.Body);
                     return RedirectToAction("Index", "Categories", new { swalMessage = "Success: Email Sent!" });
                 }
                 catch
